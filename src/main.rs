@@ -22,7 +22,7 @@ enum Command {
     List,
     /// Adds a new todo to the list
     Add { description: String },
-    /// Marks the todo with {id} as done
+    /// Marks the todo with <id> as done
     Done { id: u32 },
 }
 
@@ -30,6 +30,7 @@ enum Command {
 struct Todo {
     id: u32,
     description: String,
+    done: bool,
 }
 
 const DB_URL: &'static str = "sqlite://todos.db";
@@ -58,7 +59,7 @@ async fn main() -> Result<()> {
 }
 
 async fn create_todos(db: &Pool<Sqlite>) -> Result<()> {
-    sqlx::query("CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY NOT NULL, description VARCHAR(250) NOT NULL);")
+    sqlx::query("CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY NOT NULL, description VARCHAR(250) NOT NULL, done BOOL NOT NULL);")
     .execute(db)
     .await?;
 
@@ -73,7 +74,7 @@ async fn list(db: &Pool<Sqlite>) -> Result<()> {
         .await?;
 
     for todo in todos {
-        println!("[{}, {}]", todo.id, todo.description);
+        println!("[{}, {}, {}]", todo.id, todo.description, todo.done);
     }
 
     Ok(())
@@ -82,16 +83,23 @@ async fn list(db: &Pool<Sqlite>) -> Result<()> {
 async fn add(db: &Pool<Sqlite>, description: String) -> Result<()> {
     println!("adding {description} to {DB_URL}");
 
-    sqlx::query("INSERT into todos (description) VALUES (?)")
+    sqlx::query("INSERT into todos (description, done) VALUES (?, ?)")
         .bind(description)
+        .bind(false)
         .execute(db)
         .await?;
 
     Ok(())
 }
 
-async fn done(_: &Pool<Sqlite>, id: u32) -> Result<()> {
-    println!("removing {id} from {DB_URL}");
+async fn done(db: &Pool<Sqlite>, id: u32) -> Result<()> {
+    println!("Marking {id} as done from {DB_URL}");
+
+    sqlx::query("UPDATE todos SET done = (?) WHERE id = (?)")
+        .bind(true)
+        .bind(id)
+        .execute(db)
+        .await?;
 
     Ok(())
 }
